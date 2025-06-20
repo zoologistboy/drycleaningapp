@@ -4,10 +4,14 @@ const jwt = require("jsonwebtoken");
 const sendVerificationEmail = require("../services/nodemailer/sendVerificationEmail");
 const generateRandomString = require("../utils/randomString");
 const sendResetPasswordEmail = require("../services/nodemailer/sendResetPasswordEmail");
-const jwtAccessToken = require("../utils/token.js")
+require("dotenv").config();
 
 const signup = async (req, res, next) => {
-  const { password, email, fullName } = req.body;
+  const { password, email, fullName, role } = req.body;
+
+  if (!email || !password || !fullName) {
+    return res.status(400).json({ message: "All fields are required" });
+  }
 
   try {
     const existing = await userModel.findOne({ email });
@@ -17,7 +21,7 @@ const signup = async (req, res, next) => {
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
-    const token = generateRandomString(32);
+    const token = generateRandomString(8);
     const verificationExp = Date.now() + 5 * 60 * 1000;
 
     const profilePictureUrl = req.file ? req.file.path : "";
@@ -29,6 +33,7 @@ const signup = async (req, res, next) => {
       verificationToken: token,
       verificationExp,
       isVerified: false,
+      role
     });
 
     await sendVerificationEmail(email, fullName.split(" ")[0], token);
@@ -38,18 +43,16 @@ const signup = async (req, res, next) => {
       message: "Signup successful, please check your email to verify.",
     });
   } catch (err) {
-    console.log(err);
     next(err);
   }
 };
-
 
 const verifyEmail = async (req, res, next) => {
   const { token } = req.params;
   try {
     const user = await userModel.findOne({ verificationToken: token });
 
-    if (!user || user.verificationExp < Date.now()) {
+    if (!user || !user.verificationExp || user.verificationExp < Date.now()) {
       return res.status(400).json({ status: "error", message: "Token invalid or expired" });
     }
 
@@ -60,13 +63,17 @@ const verifyEmail = async (req, res, next) => {
 
     res.status(200).json({ status: "success", message: "Email verified successfully" });
   } catch (err) {
-    console.log(err);
     next(err);
   }
 };
 
 const login = async (req, res, next) => {
   const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ message: "Email and password are required" });
+  }
+
   try {
     const user = await userModel.findOne({ email });
     if (!user || !user.isVerified) {
@@ -78,7 +85,11 @@ const login = async (req, res, next) => {
       return res.status(400).json({ status: "error", message: "Invalid email or password" });
     }
 
-    const accessToken = jwtAccessToken;
+    const accessToken = jwt.sign(
+      { userId: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
 
     res.status(200).json({
       status: "success",
@@ -87,7 +98,6 @@ const login = async (req, res, next) => {
       user: { id: user._id, fullName: user.fullName, email: user.email },
     });
   } catch (err) {
-    console.log(err);
     next(err);
   }
 };
@@ -96,11 +106,16 @@ const resendVerificationEmail = async (req, res, next) => {
   const { email } = req.body;
   try {
     const user = await userModel.findOne({ email });
-    if (!user || user.isVerified) {
-      return res.status(400).json({ status: "error", message: "Invalid user or already verified" });
+
+    if (!user) {
+      return res.status(404).json({ status: "error", message: "User not found" });
     }
 
-    const token = generateRandomString(32);
+    if (user.isVerified) {
+      return res.status(409).json({ status: "error", message: "User already verified" });
+    }
+
+    const token = generateRandomString(8);
     user.verificationToken = token;
     user.verificationExp = Date.now() + 5 * 60 * 1000;
     await user.save();
@@ -112,7 +127,6 @@ const resendVerificationEmail = async (req, res, next) => {
       message: "Verification email resent successfully",
     });
   } catch (err) {
-    console.log(err);
     next(err);
   }
 };
@@ -127,16 +141,12 @@ const forgotPassword = async (req, res, next) => {
 
     const token = generateRandomString(32);
     user.resetToken = token;
-    user.resetTokenExp = Date.now() + 15 * 60 * 1000; // 15 min
+    user.resetTokenExp = Date.now() + 15 * 60 * 1000;
     await user.save();
 
     await sendResetPasswordEmail(email, token);
-    res.status(200).json({
-      status: "success",
-      message: "Reset link sent to your email",
-    });
+    res.status(200).json({ status: "success", message: "Reset link sent to your email" });
   } catch (err) {
-    console.log(err);
     next(err);
   }
 };
@@ -160,7 +170,6 @@ const resetPassword = async (req, res, next) => {
 
     res.status(200).json({ status: "success", message: "Password reset successfully" });
   } catch (err) {
-    console.log(err);
     next(err);
   }
 };
@@ -174,7 +183,6 @@ const getProfile = async (req, res, next) => {
 
     res.status(200).json({ status: "success", data: user });
   } catch (err) {
-    console.log(err);
     next(err);
   }
 };
@@ -195,7 +203,6 @@ const updateProfile = async (req, res, next) => {
       data: user,
     });
   } catch (err) {
-    console.log(err);
     next(err);
   }
 };

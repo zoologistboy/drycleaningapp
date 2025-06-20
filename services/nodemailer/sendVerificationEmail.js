@@ -1,7 +1,7 @@
 const transporter = require("./transporter");
 
 const sendVerificationEmail = (email, userFirstName, token) => {
-    const verificationLink = `${process.env.client_domain}/auth/verify/${token}`;
+    const verificationLink = `${process.env.client_domain}/verify/${token}`;
     
     const options = {
   to: email,
