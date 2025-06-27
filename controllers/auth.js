@@ -1,9 +1,11 @@
-const userModel = require("../models/users");
-const bcrypt = require("bcryptjs");
+const userModel = require("../models/user");
+// const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs")
 const jwt = require("jsonwebtoken");
 const sendVerificationEmail = require("../services/nodemailer/sendVerificationEmail");
 const generateRandomString = require("../utils/randomString");
 const sendResetPasswordEmail = require("../services/nodemailer/sendResetPasswordEmail");
+const generateToken = require("../utils/token");
 require("dotenv").config();
 
 const signup = async (req, res, next) => {
@@ -47,6 +49,47 @@ const signup = async (req, res, next) => {
   }
 };
 
+const updateProfile = async (req, res, next) => {
+  const { fullName, phoneNumber, address } = req.body;
+
+  try {
+    const updateData = { fullName, phoneNumber, address };
+
+    if (req.file) {
+      updateData.profilePicture = req.file.path;
+    }
+
+    const user = await userModel.findByIdAndUpdate(
+      req.user._id,
+      updateData,
+      { new: true }
+    ).select("-password");
+
+    if (!user) {
+      return res.status(404).json({
+        status: "fail",
+        message: "User not found",
+      });
+    }
+
+    res.status(200).json({
+      status: "success",
+      message: "Profile updated",
+      data: user,
+    });
+  } catch (err) {
+    console.error("Error updating profile:", err);
+    next(err);
+  //   console.error("Error updating profile:", err);
+  // res.status(500).json({
+  //   message: "something went wrong",
+  //   errorName: err.name,
+  //   errorMessage: err.message, // Add this!
+  //   stack: err.stack // Optional: for full debugging
+  }
+};
+
+
 const verifyEmail = async (req, res, next) => {
   const { token } = req.params;
   try {
@@ -77,30 +120,38 @@ const login = async (req, res, next) => {
   try {
     const user = await userModel.findOne({ email });
     if (!user || !user.isVerified) {
-      return res.status(400).json({ status: "error", message: "Invalid email or account not verified" });
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid email or account not verified",
+      });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ status: "error", message: "Invalid email or password" });
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid email or password",
+      });
     }
 
-    const accessToken = jwt.sign(
-      { userId: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" }
-    );
+    const accessToken = generateToken(user); // ✅ FIXED
 
     res.status(200).json({
       status: "success",
       message: "Login successful",
       accessToken,
-      user: { id: user._id, fullName: user.fullName, email: user.email },
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        email: user.email,
+        role: user.role, // optional, if you need role-based access
+      },
     });
   } catch (err) {
     next(err);
   }
 };
+
 
 const resendVerificationEmail = async (req, res, next) => {
   const { email } = req.body;
@@ -187,25 +238,7 @@ const getProfile = async (req, res, next) => {
   }
 };
 
-const updateProfile = async (req, res, next) => {
-  const { fullName, phone, address, profilePicture } = req.body;
 
-  try {
-    const user = await userModel.findByIdAndUpdate(
-      req.user.id,
-      { fullName, phone, address, profilePicture },
-      { new: true }
-    ).select("-password");
-
-    res.status(200).json({
-      status: "success",
-      message: "Profile updated",
-      data: user,
-    });
-  } catch (err) {
-    next(err);
-  }
-};
 
 module.exports = {
   signup,

@@ -1,35 +1,49 @@
 const jwt = require("jsonwebtoken");
-const userModel = require("../models/users");
+const userModel = require("../models/user");
 
-const isLoggedIn = async(req, res, next)=>{
+const isLoggedIn = async (req, res, next) => {
+  try {
     let token;
-    if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")){
-        token = req.headers.authorization.split(" ")[1]
-        console.log(token);
-        
+
+    // 1. Get token from headers
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith("Bearer")
+    ) {
+      token = req.headers.authorization.split(" ")[1];
     }
+
+    // 2. If no token, reject access
     if (!token) {
-        return res.status(403).json({
-            status: "error",
-            message:"you need a token to access this page/ you need to log in"
-        })
+      return res.status(403).json({
+        status: "error",
+        message: "You need a token to access this page. Please log in.",
+      });
     }
-    const decoded = jwt.verify(token, process.env.jwt_secret)
-    console.log(decoded);
 
-     const user = await userModel.findById(decoded.id)
-     if(!user){
-        return res.status(404).json({
-            status:"error",
-            message:"this token belongs to no one"
-        })
-     }
-     req.user = user
-     next()
+    // 3. Verify token
+    const decoded = jwt.verify(token, process.env.jwt_secret); // 🔁 Use `JWT_SECRET` (case sensitive)
+    // console.log("Decoded JWT:", decoded);
 
-    
+    // 4. Find user by ID in token
+    const user = await userModel.findById(decoded.id).select("-password");
+    if (!user) {
+      return res.status(404).json({
+        status: "error",
+        message: "This token does not belong to a valid user.",
+      });
+    }
 
-    // return res.send("testing token")
-    // next()
-}
-module.exports = isLoggedIn
+    // 5. Attach user to request
+    req.user = user;
+    next();
+  } catch (err) {
+    console.error("Auth middleware error:", err);
+    return res.status(401).json({
+      status: "error",
+      message: "Invalid or expired token",
+    });
+  }
+};
+
+module.exports = isLoggedIn;

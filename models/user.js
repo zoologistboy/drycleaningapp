@@ -23,10 +23,7 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
     address: {
-      street: { type: String },
-      city: { type: String },
-      state: { type: String },
-      postalCode: { type: String },
+      type: String,
     },
     profilePicture: {
       type: String,

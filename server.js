@@ -33,7 +33,7 @@ const userRouter = require("./routes/userRouter")
 app.use("/api/auth", authRouter)
 
 
-app.use("/api/users", userRouter) 
+app.use("/api/users", userRouter)
 
 app.all("{*any}", (req, res)=>{
    res.send(`${req.method} ${req.originalUrl} is not an endpoint on this server`)
