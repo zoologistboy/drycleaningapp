@@ -6,7 +6,8 @@ const {
   verifyEmail,
   resendVerificationEmail,
   updateProfile,
-  getProfile
+  getProfile,
+  forgotPassword
 } = require("../controllers/auth");
 const profilePicture = require("../config/multer");
 const isLoggedIn = require("../middleware/isLoggedin");
@@ -21,6 +22,7 @@ authRouter.get("/profile", isLoggedIn, getProfile)
 
 
 // ✅ POST route for resending email (uses body not URL)
+authRouter.post("/forgot-password", forgotPassword)
 authRouter.post("/resend-verification", resendVerificationEmail);
 authRouter.put('/update-profile', isLoggedIn, profilePicture.single("profilePicture"), updateProfile);
 

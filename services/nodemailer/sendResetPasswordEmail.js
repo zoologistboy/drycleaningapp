@@ -1,7 +1,7 @@
 const transporter = require("./transporter"); // your nodemailer config
 
-const sendResetPasswordEmail = async (email, userFirstName, resetToken) => {
-  const resetLink = `https://commerceplexus.com/reset-password/${resetToken}`;
+const sendResetPasswordEmail = async (email, userFirstName, token) => {
+  const resetLink = `${process.env.client_domain}/reset-password/${token}`;
 
   const options = {
     to: email,

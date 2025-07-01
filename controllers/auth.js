@@ -190,12 +190,14 @@ const forgotPassword = async (req, res, next) => {
       return res.status(400).json({ status: "error", message: "User not found" });
     }
 
-    const token = generateRandomString(32);
+    const userFirstName = user.fullName.split(" ")[0]
+
+    const token = generateRandomString(8);
     user.resetToken = token;
     user.resetTokenExp = Date.now() + 15 * 60 * 1000;
     await user.save();
 
-    await sendResetPasswordEmail(email, token);
+    await sendResetPasswordEmail(email, userFirstName, token);
     res.status(200).json({ status: "success", message: "Reset link sent to your email" });
   } catch (err) {
     next(err);

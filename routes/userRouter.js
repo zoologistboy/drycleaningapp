@@ -8,7 +8,7 @@ userRouter.get("/", getAllUsers)
 
 userRouter.get("/:id", getSingleUser)
 
-userRouter.get("", getUserByQuery)
+// userRouter.get("", getUserByQuery)
 
 
 module.exports= userRouter

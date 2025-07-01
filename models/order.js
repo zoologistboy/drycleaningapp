@@ -70,6 +70,14 @@ const orderSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    refund: {
+    requested: { type: Boolean, default: false },
+    processed: { type: Boolean, default: false },
+    amount: { type: Number, default: 0 },
+    reason: String,
+    processedAt: Date,
+    processedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
+}
   },
   { timestamps: true }
 );

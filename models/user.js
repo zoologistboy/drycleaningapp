@@ -64,13 +64,14 @@ const userSchema = new mongoose.Schema(
         ref: "Order",
       },
     ],
-    notifications: [
-      {
-        message: { type: String },
-        seen: { type: Boolean, default: false },
-        createdAt: { type: Date, default: Date.now },
-      },
-    ],
+    // In user model
+    notifications: [{
+      message: String,
+      type: { type: String, enum: ["order", "payment", "promotion"] },
+      read: { type: Boolean, default: false },
+      link: String, // e.g., "/orders/123"
+      createdAt: { type: Date, default: Date.now }
+    }],
     deletedAt: {
       type: Date, // optional soft-delete field
       default: null,
