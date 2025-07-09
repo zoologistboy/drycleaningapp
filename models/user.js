@@ -64,10 +64,14 @@ const userSchema = new mongoose.Schema(
         ref: "Order",
       },
     ],
+    assignedStaff:{
+     type: mongoose.Schema.Types.ObjectId,
+     ref:"user"
+    },
     // In user model
     notifications: [{
       message: String,
-      type: { type: String, enum: ["order", "payment", "promotion"] },
+      type: { type: String, enum: ["order", "payment", "promotion", "wallet"] },
       read: { type: Boolean, default: false },
       link: String, // e.g., "/orders/123"
       createdAt: { type: Date, default: Date.now }

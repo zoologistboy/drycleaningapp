@@ -462,8 +462,10 @@ const getStaffPerformance = async (req, res) => {
  */
 const checkLowStock = async (req, res) => {
   try {
+    const threshold = Number(req.query.threshold) || 10;
+
     const lowStockItems = await Inventory.find({
-      currentStock: { $lte: "$threshold" }
+      currentStock: { $lte: threshold }
     });
 
     if (lowStockItems.length > 0) {
@@ -525,6 +527,27 @@ const restockInventory = async (req, res) => {
   }
 };
 
+const Transaction = require("../models/transaction");
+
+const getRecentTransactions = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 5;
+    const transactions = await Transaction.find()
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .populate("user", "fullName email");
+
+    res.json({
+      status: "success",
+      data: transactions
+    });
+  } catch (err) {
+    res.status(500).json({ status: "error", message: err.message });
+  }
+};
+
+
+
 module.exports = {
     getRevenueAnalytics,
     getDashboardStats,
@@ -539,6 +562,7 @@ module.exports = {
     logStaffPerformance,
     restockInventory,
     updateInventoryAfterOrder,
-    checkLowStock
+    checkLowStock,
+    getRecentTransactions
 
 }

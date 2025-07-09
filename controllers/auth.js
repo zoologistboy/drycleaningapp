@@ -229,7 +229,7 @@ const resetPassword = async (req, res, next) => {
 
 const getProfile = async (req, res, next) => {
   try {
-    const user = await userModel.findById(req.user.id).select("-password");
+    const user = await userModel.findById(req.user.id).select("-password").populate("orders");
     if (!user) {
       return res.status(404).json({ status: "error", message: "User not found" });
     }

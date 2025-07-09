@@ -34,7 +34,9 @@ const getAllUsers = async (req, res)=>{
     try {
 
 
-        const user = await userModel.find()
+        const user = await userModel.find().populate('orders')
+       // const user = await User.findById(req.user._id).populate('orders');
+
         if(!user){
             return res.status(400).json({
                 status: "error",
@@ -66,7 +68,7 @@ const getSingleUser = async(req, res)=>{
         });
     }
     try {
-        const user = await userModel.findById(id);
+        const user = await userModel.findById(id).populate("orders");
         if (!user) {
             return res.status(404).json({
                 status:"error",
@@ -98,7 +100,7 @@ const getUserByQuery = async(req, res)=>{
         })
     }
     try {
-        const user = await userModel.findOne({email})
+        const user = await userModel.findOne({email}).populate("orders")
         if (!user) {
             return res.status(404).json({
                 status: "error",

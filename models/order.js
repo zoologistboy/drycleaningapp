@@ -1,113 +1,86 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
-const serviceSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-    enum: ["wash", "iron", "dry clean", "fold", "stain removal", "other"],
+const orderSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   },
-  quantity: {
-    type: Number,
-    default: 1,
-  },
-  pricePerUnit: {
-    type: Number,
-    required: true,
-  },
-});
-
-const orderSchema = new mongoose.Schema(
-  {
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
+  services: [{
+    serviceId: {
+      type: String,
+      required: true
     },
-    services: [serviceSchema],
-    totalAmount: {
+    name: {
+      type: String,
+      required: true
+    },
+    pricePerUnit: {
+      type: Number,
+      required: true
+    },
+    quantity: {
       type: Number,
       required: true,
+      default: 1
     },
-    status: {
-      type: String,
-      enum: ["pending", "processing", "completed", "cancelled", "delivered"],
-      default: "pending",
-    },
-    deliveryType: {
-      type: String,
-      enum: ["pickup", "dropoff", "walk-in"],
-      default: "walk-in",
-    },
-    deliveryAddress: {
-      street: String,
-      city: String,
-      state: String,
-      postalCode: String,
-    },
-    scheduledAt: {
-      type: Date,
-      default: null,
-    },
-    completedAt: {
-      type: Date,
-      default: null,
-    },
-    assignedStaff: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User", // assuming staff are in User collection
-      default: null,
-    },
-    isPaid: {
-      type: Boolean,
-      default: false,
-    },
-    paymentMethod: {
-      type: String,
-      enum: ["wallet", "card", "cash", "transfer"],
-      default: "cash",
-    },
-    notes: {
-      type: String,
-      default: "",
-    },
-    refund: {
-    requested: { type: Boolean, default: false },
-    processed: { type: Boolean, default: false },
-    amount: { type: Number, default: 0 },
-    reason: String,
-    processedAt: Date,
-    processedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
-}
+    description: {
+      type: String
+    }
+  }],
+  totalAmount: {
+    type: Number,
+    required: true
   },
-  { timestamps: true }
-);
+  deliveryType: {
+    type: String,
+    enum: ['pickup', 'dropoff'],
+    required: true
+  },
+  deliveryAddress: {
+    type: String,
+    required: true
+  },
+  deliveryDate: {
+    type: Date
+  },
+  deliveryTime: {
+    type: String
+  },
+  paymentMethod: {
+    type: String,
+    enum: ['wallet', 'card', 'cash'],
+    required: true
+  },
+  isPaid: {
+    type: Boolean,
+    default: false
+  },
+  status: {
+    type: String,
+    enum: ['pending', 'processing', 'in-progress', 'completed', 'cancelled'],
+    default: 'pending'
+  },
+  notes: {
+    type: String
+  },
+  customer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  assignedStaff: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }
+}, {
+  timestamps: true
+});
 
-module.exports = mongoose.model("Order", orderSchema);
+// Add indexes for better query performance
+orderSchema.index({ user: 1 });
+orderSchema.index({ status: 1 });
+orderSchema.index({ createdAt: -1 });
 
+const Order = mongoose.model('Order', orderSchema);
 
-// {
-//   "user": "ObjectId('...')",
-//   "services": [
-//     {
-//       "name": "dry clean",
-//       "quantity": 2,
-//       "pricePerUnit": 1500
-//     },
-//     {
-//       "name": "iron",
-//       "quantity": 3,
-//       "pricePerUnit": 500
-//     }
-//   ],
-//   "totalAmount": 4500,
-//   "deliveryType": "pickup",
-//   "deliveryAddress": {
-//     "street": "12 Kings Road",
-//     "city": "Lagos",
-//     "state": "Lagos",
-//     "postalCode": "100001"
-//   },
-//   "status": "processing",
-//   "isPaid": true
-// }
-
+module.exports = Order;

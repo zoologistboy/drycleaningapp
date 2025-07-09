@@ -21,16 +21,16 @@ app.use(cors({
   origin: process.env.FRONTEND_URL, // e.g., http://localhost:5173
   credentials: true                 // ✅ Required when using cookies/tokens
 }));
-app.use(express.json());
+app.use(express.json()); 
 app.use(express.urlencoded({ extended: true }));
 
 // Rate limiter
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: "Too many requests from this IP, please try again later"
-});
-app.use("/api/", limiter);
+// const limiter = rateLimit({
+//   windowMs: 15 * 60 * 1000,
+//   max: 100,
+//   message: "Too many requests from this IP, please try again later"
+// });
+// app.use("/api/", limiter);
 
 // Nodemailer (email setup)
 require("./services/nodemailer/transporter");
@@ -40,15 +40,16 @@ const authRouter = require("./routes/authRouter");
 const userRouter = require("./routes/userRouter");
 const orderRouter = require("./routes/orderRouter");
 const adminRouter = require("./routes/adminRouter");
-// const paymentRouter = require("./routes/paymentRouter");
-// const walletRouter = require("./routes/walletRouter");
+const paymentRouter = require("./routes/paymentRouter");
+const walletRouter = require("./routes/wallet");
 
 app.use("/api/auth", authRouter);
 app.use("/api/users", userRouter);
 app.use("/api/orders", orderRouter);
 app.use("/api/admin", adminRouter);
-// app.use("/api/wallet", walletRouter);
-// app.use("/api/payment", paymentRouter);
+app.use("/api/wallet", walletRouter);
+app.use("/api/payment", paymentRouter);
+
 
 // Catch-all for undefined routes
 app.all("*any", (req, res) => {
@@ -66,7 +67,7 @@ const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
     origin: process.env.FRONTEND_URL, // e.g., http://localhost:5173
-    methods: ["GET", "POST"],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true
   }
 });

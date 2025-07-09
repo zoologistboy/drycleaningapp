@@ -35,6 +35,9 @@ const paymentWebhook = async (req, res) => {
     return res.status(401).end();
   }
 
+  const payload = JSON.parse(req.body);
+  console.log("✅ Webhook received:", payload);
+
   const { tx_ref, status } = req.body;
   const orderId = tx_ref.split("_")[1];
 

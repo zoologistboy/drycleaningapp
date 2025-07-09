@@ -11,26 +11,29 @@ const {
   getStaffPerformance,
   checkLowStock,
   restockInventory,
+  getRecentTransactions
 //   updateOrderStatusAdmin
 } = require("../controllers/admin");
 const isLoggedIn = require("../middleware/isLoggedin");
-const {isAdmin} = require("../middleware/isAdmin")
+// const {} = require("../middleware/")
 
 
-// router.use(isLoggedIn, isAdmin);
+// router.use(isLoggedIn, );
 
 // Order Management
-adminRouter.get("/orders", isLoggedIn, isAdmin, getAllOrders);
-adminRouter.patch("/orders/:id/status", isLoggedIn, isAdmin, updateOrderStatus);
-adminRouter.patch("/orders/:id/assign", isLoggedIn, isAdmin, assignOrderToStaff);
+adminRouter.get("/orders", isLoggedIn, getAllOrders);
+adminRouter.patch("/orders/:id/status", isLoggedIn, updateOrderStatus);
+adminRouter.patch("/orders/:id/assign", isLoggedIn, assignOrderToStaff);
 
 // User Management
-adminRouter.get("/users",isLoggedIn, isAdmin, getAllUsers);
+adminRouter.get("/users",isLoggedIn, getAllUsers);
 adminRouter.post("/users/staff", createStaffAccount);
+adminRouter.get("/transactions", isLoggedIn, getRecentTransactions);
+
 
 // Analytics
-adminRouter.get("/stats", isLoggedIn, isAdmin, getDashboardStats);
-adminRouter.get("/analytics/revenue", isLoggedIn, isAdmin, getRevenueAnalytics);
+adminRouter.get("/stats", isLoggedIn, getDashboardStats);
+adminRouter.get("/analytics/revenue", isLoggedIn, getRevenueAnalytics);
 adminRouter.get("/staff/performance", getStaffPerformance);
 
 adminRouter.get("/inventory/low-stock", checkLowStock);
