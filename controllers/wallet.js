@@ -36,7 +36,8 @@ const topUpWallet = async (req, res) => {
       },
     };
 
-    const response = await flw.PaymentInitiation.initialize(paymentData);
+    const response = await flw.PaymentInitiation.payment(paymentData);
+;
     if (response.status !== 'success') {
       return res.status(500).json({ status: 'error', message: 'Failed to initiate payment' });
     }
