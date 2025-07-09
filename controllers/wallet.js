@@ -169,10 +169,10 @@ const verifyFlutterwavePayment = async (req, res) => {
         },
       });
 
-      return res.redirect(`http://localhost:3000/wallet?status=success`);
+      return res.redirect(`http://localhost:5173/wallet?status=success`);
     }
 
-    return res.redirect(`http://localhost:3000/wallet?status=failed`);
+    return res.redirect(`http://localhost:5173/wallet?status=failed`);
   } catch (err) {
     console.error('Verification error:', err.message);
     res.status(500).send('Payment verification failed');
