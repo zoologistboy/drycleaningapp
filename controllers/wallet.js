@@ -3,6 +3,8 @@ const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const User = require('../models/user');
 const Transaction = require('../models/transaction');
+const dotenv = require("dotenv")
+dotenv.config()
 
 
 const Flutterwave = require('flutterwave-node-v3');
@@ -305,9 +307,15 @@ const verifyTopUp = async (req, res) => {
 //   }
 // };
 const paymentWebhook = async (req, res) => {
+  console.log("hereee");
+  
   try {
     const secretHash = process.env.FLW_SECRET_HASH;
     const signature = req.headers['verif-hash'];
+
+    console.log("Signature from header:", signature);
+    console.log("Secret hash from env:", secretHash);
+
 
     if (!signature || signature !== secretHash) {
       console.log("❌ Invalid signature");

@@ -26,7 +26,7 @@ app.use(cors({
 // ✅ Use express.raw *only for the webhook*
 // app.post('/api/wallet/webhook', express.raw({ type: 'application/json' }));
 const { paymentWebhook } = require('./controllers/wallet');
-app.post('/api/wallet/webhook', express.raw({ type: 'application/json' }), paymentWebhook);
+app.use('/api/wallet/webhook', express.raw({ type: 'application/json' }));
 
 
 
