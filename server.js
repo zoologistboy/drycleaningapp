@@ -21,11 +21,8 @@ app.use(cors({
   origin: process.env.FRONTEND_URL, // e.g., http://localhost:5173
   credentials: true                 // ✅ Required when using cookies/tokens
 }));
-// ✅ Webhook: Attach FIRST with raw body parser
-// app.post('/api/wallet/webhook', express.raw({ type: 'application/json+raw' }), require('./controllers/wallet').paymentWebhook);
-// ✅ Use express.raw *only for the webhook*
-// app.post('/api/wallet/webhook', express.raw({ type: 'application/json' }));
-const { paymentWebhook } = require('./controllers/wallet');
+
+// const { paymentWebhook } = require('./controllers/wallet');
 app.use('/api/wallet/webhook', express.raw({ type: 'application/json' }));
 
 

@@ -456,10 +456,14 @@ const paymentWebhook = async (req, res) => {
     console.log("✅ Webhook hit");
 
     const secretHash = process.env.FLW_SECRET_HASH;
-    const signature = req.headers["verif-hash"];
+    //const signature = req.headers["verif-hash"];
+    const signature = req.headers['verif-hash'] || req.headers['Verif-Hash'] || req.headers['verif_hash'];
+
 
     if (!signature || signature !== secretHash) {
       console.log("❌ Invalid signature");
+      console.log('Secret hash from env:', secretHash);
+      console.log('Signature from header:', signature);
       return res.status(401).json({ message: "Unauthorized" });
     }
 
