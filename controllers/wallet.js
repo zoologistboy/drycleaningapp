@@ -1,102 +1,166 @@
+// controllers/wallet.js
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const User = require('../models/user');
 const Transaction = require('../models/transaction');
+
+
 const Flutterwave = require('flutterwave-node-v3');
 const flw = new Flutterwave(process.env.FLW_PUBLIC_KEY, process.env.FLW_SECRET_KEY);
 
-// Top-up wallet (initiate Flutterwave payment)
 const topUpWallet = async (req, res) => {
   try {
     const { amount, paymentMethod = 'card' } = req.body;
 
-    // Validate amount
     if (!amount || isNaN(amount) || amount <= 0) {
-      return res.status(400).json({ status: 'error', message: 'Invalid amount' });
+      return res.status(400).json({ status: "error", message: "Invalid amount" });
     }
 
-    // Find user
     const user = await User.findById(req.user._id);
     if (!user) {
-      return res.status(404).json({ status: 'error', message: 'User not found' });
+      return res.status(404).json({ status: "error", message: "User not found" });
     }
 
-    // Generate unique transaction reference
     const txRef = `TOPUP-${uuidv4()}`;
 
-    // Prepare payment data
     const paymentData = {
       tx_ref: txRef,
       amount,
-      currency: 'NGN',
-      redirect_url: 'https://drycleaningapp.onrender.com/wallet/verify', // 👈 update for production
+      currency: "NGN",
+      redirect_url: "http://localhost:5173/wallet/verify", // frontend route to handle verification
       customer: {
         email: user.email,
         name: user.fullName,
       },
       customizations: {
-        title: 'Wallet Top-Up',
+        title: "Wallet Top-Up",
         description: `Top up of ₦${amount}`,
-      },
+      }
     };
 
-    // Initiate payment with Flutterwave
-    const response = await flw.PaymentInitiation.payment(paymentData);
-
+    const response = await flw.PaymentInitiation.initialize(paymentData);
     if (response.status !== 'success') {
-      return res.status(500).json({ status: 'error', message: 'Failed to initiate payment' });
+      return res.status(500).json({ status: "error", message: "Failed to initiate payment" });
     }
 
-    // Save transaction as pending
+    // Save transaction with pending status
     await Transaction.create({
       user: user._id,
       amount,
-      type: 'topup',
+      type: "topup",
       method: paymentMethod,
       reference: txRef,
-      status: 'pending',
+      status: "pending",
       previousBalance: user.walletBalance,
-      newBalance: user.walletBalance, // unchanged until verified
-      description: `Wallet top-up initiated via ${paymentMethod}`,
+      newBalance: user.walletBalance, // unchanged for now
+      description: `Wallet top-up initiated via ${paymentMethod}`
     });
 
-    // Return payment link to frontend
-    res.json({ status: 'success', paymentLink: response.data.link });
+    res.json({ status: "success", paymentLink: response.data.link });
   } catch (err) {
-    console.error('Top-up error:', err);
-    res.status(500).json({ status: 'error', message: 'Could not initiate top-up' });
+    console.error("Top-up error:", err);
+    res.status(500).json({ status: "error", message: "Could not initiate top-up" });
   }
 };
 
 
-// Verify payment (via redirect)
-const verifyTopUp = async (req, res) => {
+
+
+const initiateFlutterwavePayment = async (req, res) => {
+  const { amount } = req.body;
+
+  if (!amount || isNaN(amount) || amount <= 0) {
+    return res.status(400).json({ message: 'Invalid amount' });
+  }
+
+  if (!req.user || !req.user._id) {
+    return res.status(401).json({ message: 'Unauthorized' });
+  }
+
   try {
-    const { transaction_id } = req.query;
-
-    const response = await flw.Transaction.verify({ id: transaction_id });
-    const { status, tx_ref, amount } = response.data;
-
-    const transaction = await Transaction.findOne({ reference: tx_ref });
-    if (!transaction || transaction.status === 'completed') {
-      return res.redirect('http://localhost:5173/wallet?status=already');
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
     }
 
-    if (status === 'successful') {
-      const user = await User.findById(transaction.user);
-      const prevBalance = user.walletBalance;
-      user.walletBalance += Number(amount);
+    const txRef = `TOPUP-${uuidv4()}`;
+
+    const flutterwaveRes = await axios.post(
+      'https://api.flutterwave.com/v3/payments',
+      {
+        tx_ref: txRef,
+        amount,
+        currency: 'NGN',
+        redirect_url: 'http://localhost:5173/wallet/verify',
+        customer: {
+          email: user.email,
+          name: user.fullName,
+        },
+        customizations: {
+          title: 'Wallet Top-up',
+          description: `Top-up with ₦${amount}`,
+          logo: 'https://your-logo-url.com/logo.png', //3550
+        },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.FLW_SECRET_KEY}`,
+        },
+      }
+    );
+
+    const paymentLink = flutterwaveRes.data.data.link;
+
+    res.status(200).json({
+      status: 'success',
+      link: paymentLink,
+    });
+  } catch (error) {
+    console.error('Flutterwave error:', error.response?.data || error.message);
+    res.status(500).json({ message: 'Failed to initiate payment' });
+  }
+};
+
+// Verify payment and top-up wallet
+const verifyFlutterwavePayment = async (req, res) => {
+  const { transaction_id } = req.query;
+
+  try {
+    const verifyRes = await axios.get(
+      `https://api.flutterwave.com/v3/transactions/${transaction_id}/verify`,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.FLW_SECRET_KEY}`,
+        },
+      }
+    );
+
+    const data = verifyRes.data.data;
+
+    if (data.status === 'successful') {
+      const user = await User.findOne({ email: data.customer.email });
+      if (!user) return res.status(404).json({ message: 'User not found' });
+
+      const previousBalance = user.walletBalance;
+      user.walletBalance += Number(data.amount);
       await user.save();
 
-      transaction.status = 'completed';
-      transaction.previousBalance = prevBalance;
-      transaction.newBalance = user.walletBalance;
-      await transaction.save();
+      const transaction = await Transaction.create({
+        user: user._id,
+        amount: data.amount,
+        type: 'topup',
+        method: 'flutterwave',
+        reference: data.tx_ref,
+        status: 'completed',
+        previousBalance,
+        newBalance: user.walletBalance,
+        description: `Flutterwave top-up`,
+      });
 
       await User.findByIdAndUpdate(user._id, {
         $push: {
           notifications: {
-            message: `Your wallet was credited with ₦${Number(amount).toLocaleString()}`,
+            message: `Your wallet was credited with ₦${data.amount.toLocaleString()}`,
             type: 'wallet',
             link: '/wallet',
             read: false,
@@ -105,16 +169,13 @@ const verifyTopUp = async (req, res) => {
         },
       });
 
-      return res.redirect('http://localhost:5173/wallet?status=success');
+      return res.redirect(`http://localhost:3000/wallet?status=success`);
     }
 
-    // Update to failed
-    transaction.status = 'failed';
-    await transaction.save();
-    return res.redirect('http://localhost:5173/wallet?status=failed');
-  } catch (error) {
-    console.error('Verification error:', error.message);
-    return res.redirect('http://localhost:5173/wallet?status=error');
+    return res.redirect(`http://localhost:3000/wallet?status=failed`);
+  } catch (err) {
+    console.error('Verification error:', err.message);
+    res.status(500).send('Payment verification failed');
   }
 };
 
@@ -170,67 +231,70 @@ const getWalletTransactions = async (req, res) => {
   }
 };
 
-// (Optional) Webhook handler for automatic verification
-const paymentWebhook = async (req, res) => {
-  const secretHash = process.env.FLW_SECRET_HASH;
-  const signature = req.headers['verif-hash'];
-
-  if (!signature || signature !== secretHash) {
-    console.warn('⚠️ Invalid signature:', signature);
-    return res.status(401).end();
-  }
-
+const verifyTopUp = async (req, res) => {
   try {
-    const payload = JSON.parse(req.body.toString('utf8')); // ✅ Parse raw buffer
-    console.log('✅ Webhook received:', payload);
+    const { transaction_id } = req.query;
 
-    const { tx_ref, status, amount } = payload;
+    const response = await flw.Transaction.verify({ id: transaction_id });
+    const { status, tx_ref, amount } = response.data;
 
     const transaction = await Transaction.findOne({ reference: tx_ref });
     if (!transaction || transaction.status === 'completed') {
-      return res.status(200).end(); // Already handled
+      return res.redirect('/wallet?verified=already'); // Frontend route
     }
 
-    if (status === 'successful') {
+    if (status === "successful") {
       const user = await User.findById(transaction.user);
       const prevBalance = user.walletBalance;
-      user.walletBalance += Number(amount);
+      user.walletBalance += amount;
       await user.save();
 
-      transaction.status = 'completed';
-      transaction.previousBalance = prevBalance;
+      transaction.status = "completed";
       transaction.newBalance = user.walletBalance;
+      transaction.previousBalance = prevBalance;
       await transaction.save();
 
-      await User.findByIdAndUpdate(user._id, {
-        $push: {
-          notifications: {
-            message: `Your wallet was credited with ₦${Number(amount).toLocaleString()}`,
-            type: 'wallet',
-            link: '/wallet',
-            read: false,
-            createdAt: new Date(),
-          },
-        },
-      });
-
-    } else {
-      transaction.status = 'failed';
-      await transaction.save();
+      return res.redirect('/wallet?verified=success');
     }
 
-    return res.status(200).end();
-  } catch (err) {
-    console.error('Webhook processing error:', err);
-    return res.status(500).end();
+    transaction.status = "failed";
+    await transaction.save();
+    return res.redirect('/wallet?verified=failed');
+  } catch (error) {
+    console.error("Verification error:", error);
+    return res.redirect('/wallet?verified=error');
   }
+};
+
+const paymentWebhook = async (req, res) => {
+  const secretHash = process.env.FLW_SECRET_HASH;
+  const signature = req.headers["verif-hash"];
+  
+  if (signature !== secretHash) {
+    return res.status(401).end();
+  }
+
+  const payload = JSON.parse(req.body);
+  console.log("✅ Webhook received:", payload);
+
+  const { tx_ref, status } = req.body;
+  const orderId = tx_ref.split("_")[1];
+
+  if (status === "successful") {
+    await Order.findByIdAndUpdate(orderId, { isPaid: true });
+    // Add notification to user
+  }
+
+  res.status(200).end();
 };
 
 
 module.exports = {
-  topUpWallet,
-  verifyTopUp,
+  initiateFlutterwavePayment,
+  verifyFlutterwavePayment,
   getWalletBalance,
   getWalletTransactions,
-  paymentWebhook,
+  verifyTopUp,
+  topUpWallet,
+  paymentWebhook
 };

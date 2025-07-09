@@ -6,7 +6,9 @@ const {
   getWalletBalance,
   getWalletTransactions,
   verifyTopUp,
-  paymentWebhook
+  paymentWebhook,
+  initiateFlutterwavePayment,
+  verifyFlutterwavePayment
 } = require('../controllers/wallet');
 
 const isLoggedIn = require('../middleware/isLoggedin');
@@ -22,7 +24,7 @@ walletRouter.get('/verify', verifyTopUp);
 walletRouter.post('/webhook', paymentWebhook);
 
 // Flutterwave-specific
-walletRouter.post('/flutterwave/initiate', isLoggedIn, topUpWallet);
-walletRouter.get('/flutterwave/verify', verifyTopUp); // This route is called via redirect from Flutterwave
+walletRouter.post('/flutterwave/initiate', isLoggedIn, initiateFlutterwavePayment);
+walletRouter.get('/flutterwave/verify', verifyFlutterwavePayment); // This route is called via redirect from Flutterwave
 
 module.exports = walletRouter;
