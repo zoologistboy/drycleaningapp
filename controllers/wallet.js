@@ -25,7 +25,7 @@ const topUpWallet = async (req, res) => {
       tx_ref: txRef,
       amount,
       currency: 'NGN',
-      redirect_url: 'http://localhost:3000/wallet/verify', // frontend route
+      redirect_url: 'http://localhost:5173/wallet/verify', // frontend route
       customer: {
         email: user.email,
         name: user.fullName,
@@ -71,7 +71,7 @@ const verifyTopUp = async (req, res) => {
 
     const transaction = await Transaction.findOne({ reference: tx_ref });
     if (!transaction || transaction.status === 'completed') {
-      return res.redirect('http://localhost:3000/wallet?status=already');
+      return res.redirect('http://localhost:5173/wallet?status=already');
     }
 
     if (status === 'successful') {
@@ -97,16 +97,16 @@ const verifyTopUp = async (req, res) => {
         },
       });
 
-      return res.redirect('http://localhost:3000/wallet?status=success');
+      return res.redirect('http://localhost:5173/wallet?status=success');
     }
 
     // Update to failed
     transaction.status = 'failed';
     await transaction.save();
-    return res.redirect('http://localhost:3000/wallet?status=failed');
+    return res.redirect('http://localhost:5173/wallet?status=failed');
   } catch (error) {
     console.error('Verification error:', error.message);
-    return res.redirect('http://localhost:3000/wallet?status=error');
+    return res.redirect('http://localhost:5173/wallet?status=error');
   }
 };
 
