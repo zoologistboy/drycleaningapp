@@ -21,7 +21,7 @@ walletRouter.get('/transactions', isLoggedIn, getWalletTransactions);
 walletRouter.post('/topup', isLoggedIn, topUpWallet);
 // walletRouter.post('/topup', isLoggedIn, topUpWallet);
 walletRouter.get('/verify', verifyTopUp);
-walletRouter.post('/webhook', paymentWebhook);
+// walletRouter.post('/webhook', paymentWebhook);
 
 // Flutterwave-specific
 walletRouter.post('/flutterwave/initiate', isLoggedIn, initiateFlutterwavePayment);

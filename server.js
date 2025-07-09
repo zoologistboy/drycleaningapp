@@ -22,7 +22,13 @@ app.use(cors({
   credentials: true                 // ✅ Required when using cookies/tokens
 }));
 // ✅ Webhook: Attach FIRST with raw body parser
-app.post('/api/wallet/webhook', express.raw({ type: 'application/json' }), require('./controllers/wallet').paymentWebhook);
+// app.post('/api/wallet/webhook', express.raw({ type: 'application/json+raw' }), require('./controllers/wallet').paymentWebhook);
+// ✅ Use express.raw *only for the webhook*
+// app.post('/api/wallet/webhook', express.raw({ type: 'application/json' }));
+const { paymentWebhook } = require('./controllers/wallet');
+app.post('/api/wallet/webhook', express.raw({ type: 'application/json' }), paymentWebhook);
+
+
 
 app.use(express.json()); 
 app.use(express.urlencoded({ extended: true }));

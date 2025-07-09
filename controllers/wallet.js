@@ -266,29 +266,93 @@ const verifyTopUp = async (req, res) => {
   }
 };
 
+// 
+// const paymentWebhook = async (req, res) => {
+//   try {
+//     const secretHash = process.env.FLW_SECRET_HASH;
+//     const signature = req.headers['verif-hash'];
+
+//     let payload;
+
+//     // ✅ If req.body is a Buffer (from express.raw), parse it
+//     if (Buffer.isBuffer(req.body)) {
+//       const rawBody = req.body.toString('utf8');
+//       payload = JSON.parse(rawBody);
+//     } else {
+//       // ✅ If it's already parsed JSON (e.g., during curl testing)
+//       payload = req.body;
+//     }
+
+//     if (!signature || signature !== secretHash) {
+//       console.log("🚫 Invalid signature");
+//       return res.status(401).end();
+//     }
+
+//     console.log("✅ Webhook payload:", payload);
+
+//     const { tx_ref, status, amount } = payload;
+//     const orderId = tx_ref?.split("_")[1];
+
+//     if (status === "successful" && orderId) {
+//       await Order.findByIdAndUpdate(orderId, { isPaid: true });
+//       console.log("✅ Order marked as paid:", orderId);
+//     }
+
+//     res.status(200).end();
+//   } catch (err) {
+//     console.error("❌ Webhook Error:", err);
+//     res.status(500).json({ message: "something went wrong", errorName: err.name });
+//   }
+// };
 const paymentWebhook = async (req, res) => {
-  console.log("im at webhook");
+  console.log("i am here");
   
-  const secretHash = process.env.FLW_SECRET_HASH;
-  const signature = req.headers["verif-hash"];
-  
-  if (signature !== secretHash) {
-    return res.status(401).end();
+  try {
+    const secretHash = "yveyefg7ifg32677873t2681tegkae"
+;
+    const signature = req.headers['verif-hash'];
+
+    let payload;
+
+    // ✅ Support both raw buffer (from Flutterwave) and parsed object (from curl/Postman)
+    if (Buffer.isBuffer(req.body)) {
+      const raw = req.body.toString('utf8');
+      payload = JSON.parse(raw);
+    } else if (typeof req.body === 'object') {
+      payload = req.body;
+    } else {
+      throw new Error('Invalid body format');
+    }
+
+    if (!signature || signature !== secretHash) {
+      console.log("🚫 Invalid signature:", signature);
+      return res.status(401).end();
+    }
+
+    console.log("✅ Webhook received:", payload);
+
+    const { tx_ref, status, amount } = payload;
+
+    if (!tx_ref || !status) {
+      return res.status(400).json({ message: 'Missing tx_ref or status' });
+    }
+
+    // Example logic — update transaction/order if needed
+    const orderId = tx_ref.split('_')[1];
+    if (status === 'successful' && orderId) {
+      // Assuming Order model exists and orderId is valid
+      await Order.findByIdAndUpdate(orderId, { isPaid: true });
+    }
+
+    res.status(200).json({ message: 'Webhook processed successfully' });
+  } catch (err) {
+    console.error("❌ Webhook error:", err.message);
+    res.status(500).json({ message: "something went wrong", errorName: err.name });
   }
-
-  const payload = JSON.parse(req.body);
-  console.log("✅ Webhook received:", payload);
-
-  const { tx_ref, status } = req.body;
-  const orderId = tx_ref.split("_")[1];
-
-  if (status === "successful") {
-    await Order.findByIdAndUpdate(orderId, { isPaid: true });
-    // Add notification to user
-  }
-
-  res.status(200).end();
 };
+
+
+
 
 
 module.exports = {
