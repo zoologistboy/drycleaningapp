@@ -311,7 +311,8 @@ const paymentWebhook = async (req, res) => {
   
   try {
     const secretHash = process.env.FLW_SECRET_HASH;
-    const signature = req.headers['verif-hash'];
+    const signature = req.headers['verif-hash'] || req.headers['Verif-Hash'] || req.headers['verif_hash'];
+;
 
     console.log("Signature from header:", signature);
     console.log("Secret hash from env:", secretHash);
