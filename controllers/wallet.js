@@ -27,7 +27,7 @@ const topUpWallet = async (req, res) => {
       tx_ref: txRef,
       amount,
       currency: "NGN",
-      redirect_url: "http://localhost:3000/wallet/verify", // frontend route to handle verification
+      redirect_url: "http://localhost:5173/wallet/verify", // frontend route to handle verification
       customer: {
         email: user.email,
         name: user.fullName,
