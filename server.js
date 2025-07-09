@@ -21,8 +21,10 @@ app.use(cors({
   origin: process.env.FRONTEND_URL, // e.g., http://localhost:5173
   credentials: true                 // ✅ Required when using cookies/tokens
 }));
+app.use('/api/wallet/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json()); 
 app.use(express.urlencoded({ extended: true }));
+
 
 // Rate limiter
 // const limiter = rateLimit({
