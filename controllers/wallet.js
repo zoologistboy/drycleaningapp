@@ -91,7 +91,7 @@ const initiateFlutterwavePayment = async (req, res) => {
         tx_ref: txRef,
         amount,
         currency: 'NGN',
-        redirect_url: 'http://localhost:3550/wallet/verify',
+        redirect_url: 'http://localhost:5173/wallet/verify',
         customer: {
           email: user.email,
           name: user.fullName,
@@ -99,7 +99,7 @@ const initiateFlutterwavePayment = async (req, res) => {
         customizations: {
           title: 'Wallet Top-up',
           description: `Top-up with ₦${amount}`,
-          logo: 'https://your-logo-url.com/logo.png',
+          logo: 'https://your-logo-url.com/logo.png', //3550
         },
       },
       {
