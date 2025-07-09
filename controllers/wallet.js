@@ -305,51 +305,60 @@ const verifyTopUp = async (req, res) => {
 //   }
 // };
 const paymentWebhook = async (req, res) => {
-  console.log("i am here");
-  
   try {
-    const secretHash = "yveyefg7ifg32677873t2681tegkae"
-;
+    const secretHash = process.env.FLW_SECRET_HASH;
     const signature = req.headers['verif-hash'];
 
-    let payload;
-
-    // ✅ Support both raw buffer (from Flutterwave) and parsed object (from curl/Postman)
-    if (Buffer.isBuffer(req.body)) {
-      const raw = req.body.toString('utf8');
-      payload = JSON.parse(raw);
-    } else if (typeof req.body === 'object') {
-      payload = req.body;
-    } else {
-      throw new Error('Invalid body format');
-    }
-
     if (!signature || signature !== secretHash) {
-      console.log("🚫 Invalid signature:", signature);
-      return res.status(401).end();
+      console.log("❌ Invalid signature");
+      return res.status(401).json({ message: "Unauthorized" });
     }
 
-    console.log("✅ Webhook received:", payload);
+    // Parse raw buffer
+    const raw = req.body.toString('utf8');
+    const payload = JSON.parse(raw);
+
+    console.log('✅ Webhook payload received:', payload);
 
     const { tx_ref, status, amount } = payload;
 
-    if (!tx_ref || !status) {
-      return res.status(400).json({ message: 'Missing tx_ref or status' });
+    // Example: handle topup
+    if (status === 'successful') {
+      const transaction = await Transaction.findOne({ reference: tx_ref });
+      if (!transaction || transaction.status === 'completed') {
+        return res.status(200).end();
+      }
+
+      const user = await User.findById(transaction.user);
+      const prevBalance = user.walletBalance;
+      user.walletBalance += Number(amount);
+      await user.save();
+
+      transaction.status = 'completed';
+      transaction.previousBalance = prevBalance;
+      transaction.newBalance = user.walletBalance;
+      await transaction.save();
+
+      await User.findByIdAndUpdate(user._id, {
+        $push: {
+          notifications: {
+            message: `Your wallet was credited with ₦${Number(amount).toLocaleString()}`,
+            type: 'wallet',
+            link: '/wallet',
+            read: false,
+            createdAt: new Date(),
+          },
+        },
+      });
     }
 
-    // Example logic — update transaction/order if needed
-    const orderId = tx_ref.split('_')[1];
-    if (status === 'successful' && orderId) {
-      // Assuming Order model exists and orderId is valid
-      await Order.findByIdAndUpdate(orderId, { isPaid: true });
-    }
-
-    res.status(200).json({ message: 'Webhook processed successfully' });
+    res.status(200).end();
   } catch (err) {
-    console.error("❌ Webhook error:", err.message);
-    res.status(500).json({ message: "something went wrong", errorName: err.name });
+    console.error('❌ Webhook error:', err);
+    res.status(500).json({ message: "Something went wrong", errorName: err.name });
   }
 };
+
 
 
 
