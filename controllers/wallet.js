@@ -10,22 +10,26 @@ const topUpWallet = async (req, res) => {
   try {
     const { amount, paymentMethod = 'card' } = req.body;
 
+    // Validate amount
     if (!amount || isNaN(amount) || amount <= 0) {
       return res.status(400).json({ status: 'error', message: 'Invalid amount' });
     }
 
+    // Find user
     const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ status: 'error', message: 'User not found' });
     }
 
+    // Generate unique transaction reference
     const txRef = `TOPUP-${uuidv4()}`;
 
+    // Prepare payment data
     const paymentData = {
       tx_ref: txRef,
       amount,
       currency: 'NGN',
-      redirect_url: 'http://localhost:5173/wallet/verify', // frontend route
+      redirect_url: 'https://drycleaningapp.onrender.com/wallet/verify', // 👈 update for production
       customer: {
         email: user.email,
         name: user.fullName,
@@ -36,13 +40,14 @@ const topUpWallet = async (req, res) => {
       },
     };
 
+    // Initiate payment with Flutterwave
     const response = await flw.PaymentInitiation.payment(paymentData);
-;
+
     if (response.status !== 'success') {
       return res.status(500).json({ status: 'error', message: 'Failed to initiate payment' });
     }
 
-    // Save transaction with pending status
+    // Save transaction as pending
     await Transaction.create({
       user: user._id,
       amount,
@@ -51,16 +56,18 @@ const topUpWallet = async (req, res) => {
       reference: txRef,
       status: 'pending',
       previousBalance: user.walletBalance,
-      newBalance: user.walletBalance,
+      newBalance: user.walletBalance, // unchanged until verified
       description: `Wallet top-up initiated via ${paymentMethod}`,
     });
 
+    // Return payment link to frontend
     res.json({ status: 'success', paymentLink: response.data.link });
   } catch (err) {
     console.error('Top-up error:', err);
     res.status(500).json({ status: 'error', message: 'Could not initiate top-up' });
   }
 };
+
 
 // Verify payment (via redirect)
 const verifyTopUp = async (req, res) => {
