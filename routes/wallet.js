@@ -2,11 +2,11 @@ const express = require('express');
 const walletRouter = express.Router();
 
 const {
+  paymentWebhook,
   topUpWallet,
   getWalletBalance,
   getWalletTransactions,
   verifyTopUp,
-  paymentWebhook,
   initiateFlutterwavePayment,
   verifyFlutterwavePayment
 } = require('../controllers/wallet');
