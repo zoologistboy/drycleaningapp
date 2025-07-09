@@ -267,6 +267,8 @@ const verifyTopUp = async (req, res) => {
 };
 
 const paymentWebhook = async (req, res) => {
+  console.log("im at webhook");
+  
   const secretHash = process.env.FLW_SECRET_HASH;
   const signature = req.headers["verif-hash"];
   
