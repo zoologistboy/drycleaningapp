@@ -2,13 +2,13 @@ const express = require('express');
 const walletRouter = express.Router();
 
 const {
-  paymentWebhook,
-  //topUpWallet,
+ // topUpWallet,
   getWalletBalance,
   getWalletTransactions,
   //verifyTopUp,
-   initiateFlutterwavePayment,
-   verifyFlutterwavePayment
+  paymentWebhook,
+  initiateFlutterwavePayment,
+  verifyFlutterwavePayment
 } = require('../controllers/wallet');
 
 const isLoggedIn = require('../middleware/isLoggedin');
@@ -18,9 +18,9 @@ walletRouter.get('/balance', isLoggedIn, getWalletBalance);
 walletRouter.get('/transactions', isLoggedIn, getWalletTransactions);
 
 // Top-up operations
-walletRouter.post('/topup', isLoggedIn, topUpWallet);
 // walletRouter.post('/topup', isLoggedIn, topUpWallet);
-walletRouter.get('/verify', verifyTopUp);
+// walletRouter.post('/topup', isLoggedIn, topUpWallet);
+// walletRouter.get('/verify', verifyTopUp);
 walletRouter.post('/webhook', paymentWebhook);
 
 // Flutterwave-specific
