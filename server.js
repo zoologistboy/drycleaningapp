@@ -32,12 +32,12 @@ app.use(express.urlencoded({ extended: true }));
 
 
 //Rate limiter
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: "Too many requests from this IP, please try again later"
-});
-app.use("/api/", limiter);
+// const limiter = rateLimit({
+//   windowMs: 15 * 60 * 1000,
+//   max: 100,
+//   message: "Too many requests from this IP, please try again later"
+// });
+// app.use("/api/", limiter);
 
 // Nodemailer (email setup)
 require("./services/nodemailer/transporter");
