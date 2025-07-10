@@ -306,67 +306,192 @@ const verifyTopUp = async (req, res) => {
 //     res.status(500).json({ message: "something went wrong", errorName: err.name });
 //   }
 // };
-const paymentWebhook = async (req, res) => {
-  console.log("hereee");
+// const paymentWebhook = async (req, res) => {
+//   console.log("hereee");
   
+//   try {
+//     const secretHash = process.env.FLW_SECRET_HASH;
+//     const signature = req.headers['verif-hash'] || req.headers['Verif-Hash'] || req.headers['verif_hash'];
+// ;
+
+//     console.log("Signature from header:", signature);
+//     console.log("Secret hash from env:", secretHash);
+
+
+//     if (!signature || signature !== secretHash) {
+//       console.log("❌ Invalid signature");
+//       return res.status(401).json({ message: "Unauthorized" });
+//     }
+
+//     // Parse raw buffer
+//     const raw = req.body.toString('utf8');
+//     const payload = JSON.parse(raw);
+
+//     console.log('✅ Webhook payload received:', payload);
+
+//     const { tx_ref, status, amount } = payload;
+
+//     // Example: handle topup
+//     if (status === 'successful') {
+//       const transaction = await Transaction.findOne({ reference: tx_ref });
+//       if (!transaction || transaction.status === 'completed') {
+//         return res.status(200).end();
+//       }
+
+//       const user = await User.findById(transaction.user);
+//       const prevBalance = user.walletBalance;
+//       user.walletBalance += Number(amount);
+//       await user.save();
+
+//       transaction.status = 'completed';
+//       transaction.previousBalance = prevBalance;
+//       transaction.newBalance = user.walletBalance;
+//       await transaction.save();
+
+//       await User.findByIdAndUpdate(user._id, {
+//         $push: {
+//           notifications: {
+//             message: `Your wallet was credited with ₦${Number(amount).toLocaleString()}`,
+//             type: 'wallet',
+//             link: '/wallet',
+//             read: false,
+//             createdAt: new Date(),
+//           },
+//         },
+//       });
+//     }
+
+//     res.status(200).end();
+//   } catch (err) {
+//     console.error('❌ Webhook error:', err);
+//     res.status(500).json({ message: "Something went wrong", errorName: err.name });
+//   }
+// }; i need this
+const paymentWebhook = async (req, res) => {
   try {
-    const secretHash = process.env.FLW_SECRET_HASH;
-    const signature = req.headers['verif-hash'] || req.headers['Verif-Hash'] || req.headers['verif_hash'];
-;
-
-    console.log("Signature from header:", signature);
-    console.log("Secret hash from env:", secretHash);
-
-
+    // 1. Verify webhook signature
+    const secretHash = process.env.FLUTTERWAVE_SECRET_HASH;
+    const signature = req.headers['verif-hash'];
+    
     if (!signature || signature !== secretHash) {
-      console.log("❌ Invalid signature");
-      return res.status(401).json({ message: "Unauthorized" });
+      console.error('❌ Invalid webhook signature');
+      return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    // Parse raw buffer
-    const raw = req.body.toString('utf8');
-    const payload = JSON.parse(raw);
+    // 2. Parse the payload
+    const payload = req.body;
+    console.log('✅ Webhook payload received:', payload.event);
 
-    console.log('✅ Webhook payload received:', payload);
+    // 3. Handle charge.completed event
+    if (payload.event === 'charge.completed') {
+      const { 
+        tx_ref: txRef, 
+        amount, 
+        currency, 
+        status, 
+        id: flutterwaveId,
+        customer,
+        card 
+      } = payload.data;
 
-    const { tx_ref, status, amount } = payload;
+      // 4. Find existing transaction
+      const transaction = await Transaction.findOne({ reference: txRef });
+      if (!transaction) {
+        console.log(`Transaction ${txRef} not found`);
+        return res.status(404).end();
+      }
 
-    // Example: handle topup
-    if (status === 'successful') {
-      const transaction = await Transaction.findOne({ reference: tx_ref });
-      if (!transaction || transaction.status === 'completed') {
+      // 5. Check if already processed
+      if (transaction.status === 'completed') {
+        console.log(`Transaction ${txRef} already completed`);
         return res.status(200).end();
       }
 
-      const user = await User.findById(transaction.user);
-      const prevBalance = user.walletBalance;
-      user.walletBalance += Number(amount);
-      await user.save();
+      // 6. Process successful payment
+      if (status === 'successful') {
+        const user = await User.findById(transaction.user);
+        if (!user) {
+          console.error(`User not found for transaction ${txRef}`);
+          return res.status(404).end();
+        }
 
-      transaction.status = 'completed';
-      transaction.previousBalance = prevBalance;
-      transaction.newBalance = user.walletBalance;
-      await transaction.save();
+        // Start a session for atomic operations
+        const session = await mongoose.startSession();
+        session.startTransaction();
 
-      await User.findByIdAndUpdate(user._id, {
-        $push: {
-          notifications: {
-            message: `Your wallet was credited with ₦${Number(amount).toLocaleString()}`,
+        try {
+          const prevBalance = user.walletBalance;
+          const newBalance = prevBalance + amount;
+
+          // Update user balance
+          user.walletBalance = newBalance;
+          await user.save({ session });
+
+          // Update transaction
+          transaction.status = 'completed';
+          transaction.previousBalance = prevBalance;
+          transaction.newBalance = newBalance;
+          transaction.currency = currency;
+          transaction.method = 'card'; // From the payment type
+          transaction.metadata = {
+            flutterwaveId,
+            customerEmail: customer.email,
+            cardDetails: {
+              last4: card.last_4digits,
+              issuer: card.issuer,
+              type: card.type
+            },
+            verifiedAt: new Date()
+          };
+          await transaction.save({ session });
+
+          // Add notification
+          user.notifications.push({
+            message: `Your wallet was credited with ${formatCurrency(amount, currency)}`,
             type: 'wallet',
             link: '/wallet',
             read: false,
-            createdAt: new Date(),
-          },
-        },
-      });
+            createdAt: new Date()
+          });
+          await user.save({ session });
+
+          // Commit the transaction
+          await session.commitTransaction();
+          console.log(`💰 Successfully processed transaction ${txRef}`);
+
+        } catch (error) {
+          // If any error occurs, abort the transaction
+          await session.abortTransaction();
+          throw error;
+        } finally {
+          session.endSession();
+        }
+      } else {
+        // Mark failed transactions
+        transaction.status = 'failed';
+        await transaction.save();
+        console.log(`❌ Payment failed for transaction ${txRef}`);
+      }
     }
 
     res.status(200).end();
-  } catch (err) {
-    console.error('❌ Webhook error:', err);
-    res.status(500).json({ message: "Something went wrong", errorName: err.name });
+
+  } catch (error) {
+    console.error('❌ Webhook processing error:', error);
+    res.status(500).json({ 
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
+
+// Helper function to format currency
+function formatCurrency(amount, currency = 'NGN') {
+  return new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency
+  }).format(amount);
+}
 
 
 
