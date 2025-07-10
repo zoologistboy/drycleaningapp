@@ -233,38 +233,115 @@ const getWalletTransactions = async (req, res) => {
   }
 };
 
+// const verifyTopUp = async (req, res) => {
+//   try {
+//     const { transaction_id } = req.query;
+
+//     const response = await flw.Transaction.verify({ id: transaction_id });
+//     const { status, tx_ref, amount } = response.data;
+
+//     const transaction = await Transaction.findOne({ reference: tx_ref });
+//     if (!transaction || transaction.status === 'completed') {
+//       return res.redirect('/wallet?verified=already'); // Frontend route
+//     }
+
+//     if (status === "successful") {
+//       const user = await User.findById(transaction.user);
+//       const prevBalance = user.walletBalance;
+//       user.walletBalance += amount;
+//       await user.save();
+
+//       transaction.status = "completed";
+//       transaction.newBalance = user.walletBalance;
+//       transaction.previousBalance = prevBalance;
+//       await transaction.save();
+
+//       return res.redirect('/wallet?verified=success');
+//     }
+
+//     transaction.status = "failed";
+//     await transaction.save();
+//     return res.redirect('/wallet?verified=failed');
+//   } catch (error) {
+//     console.error("Verification error:", error);
+//     return res.redirect('/wallet?verified=error');
+//   }
+// };
+
 const verifyTopUp = async (req, res) => {
   try {
     const { transaction_id } = req.query;
+    
+    // Verify payment
+    const { status, tx_ref, amount, currency } = (await flw.Transaction.verify({ 
+      id: transaction_id 
+    })).data;
 
-    const response = await flw.Transaction.verify({ id: transaction_id });
-    const { status, tx_ref, amount } = response.data;
-
-    const transaction = await Transaction.findOne({ reference: tx_ref });
-    if (!transaction || transaction.status === 'completed') {
-      return res.redirect('/wallet?verified=already'); // Frontend route
+    // Check for existing transaction
+    const existing = await Transaction.findOne({ reference: tx_ref });
+    if (existing?.status === 'completed') {
+      return res.redirect('/wallet?verified=already');
     }
 
     if (status === "successful") {
-      const user = await User.findById(transaction.user);
-      const prevBalance = user.walletBalance;
-      user.walletBalance += amount;
-      await user.save();
+      // Atomic update with balance checking
+      const result = await User.findOneAndUpdate(
+        { _id: req.user._id },
+        { 
+          $inc: { walletBalance: amount },
+          $push: {
+            notifications: {
+              message: `Wallet credited with ${currency} ${amount.toFixed(2)}`,
+              type: 'wallet'
+            }
+          }
+        },
+        { new: true }
+      );
 
-      transaction.status = "completed";
-      transaction.newBalance = user.walletBalance;
-      transaction.previousBalance = prevBalance;
-      await transaction.save();
+      if (!result) {
+        throw new Error('User not found');
+      }
+
+      // Upsert transaction record
+      await Transaction.updateOne(
+        { reference: tx_ref },
+        {
+          user: req.user._id,
+          amount,
+          currency,
+          type: 'topup',
+          method: 'card',
+          reference: tx_ref,
+          status: 'completed',
+          previousBalance: result.walletBalance - amount,
+          newBalance: result.walletBalance,
+          'metadata.flutterwaveId': transaction_id,
+          'metadata.verifiedAt': new Date()
+        },
+        { upsert: true }
+      );
 
       return res.redirect('/wallet?verified=success');
     }
 
-    transaction.status = "failed";
-    await transaction.save();
+    // Handle failed payment
+    if (existing) {
+      await Transaction.updateOne(
+        { _id: existing._id },
+        { status: 'failed' }
+      );
+    }
+    
     return res.redirect('/wallet?verified=failed');
+
   } catch (error) {
     console.error("Verification error:", error);
-    return res.redirect('/wallet?verified=error');
+    return res.redirect(
+      `/wallet?verified=error&message=${encodeURIComponent(
+        error.response?.data?.message || error.message || 'Verification failed'
+      )}`
+    );
   }
 };
 
