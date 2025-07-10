@@ -20,82 +20,71 @@ const formatCurrency = (amount, currency = 'NGN') => {
 const topUpWallet = async (req, res) => {
   try {
     const { amount, paymentMethod = 'card' } = req.body;
+    const userId = req.user._id;
 
-    // Validate amount
-    if (!amount || isNaN(amount) || amount <= 0) {
+    // Validate input
+    if (!amount || isNaN(amount) || amount < 100) { // Minimum amount check
       return res.status(400).json({ 
-        status: "error", 
-        message: "Please enter a valid amount greater than zero" 
+        success: false,
+        message: 'Amount must be at least ₦100' 
       });
     }
 
-    const user = await User.findById(req.user._id).select('email fullName walletBalance');
+    const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ status: "error", message: "User not found" });
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
     }
 
-    const txRef = `TOPUP-${uuidv4()}`;
-    const redirectUrl = process.env.NODE_ENV === 'production'
-      ? `${process.env.FRONTEND_URL}/wallet/verify`
-      : 'http://localhost:5173/wallet/verify';
-
-    // Create pending transaction
-    const transaction = await Transaction.create({
-      user: user._id,
-      amount,
-      type: "topup",
-      method: paymentMethod,
-      reference: txRef,
-      status: "pending",
-      previousBalance: user.walletBalance,
-      newBalance: user.walletBalance,
-      description: `Wallet top-up initiated via ${paymentMethod}`
-    });
-
-    // Initialize Flutterwave payment
+    const txRef = `TOPUP-${Date.now()}-${userId}`;
+    
     const paymentData = {
       tx_ref: txRef,
       amount,
       currency: "NGN",
-      redirect_url: redirectUrl,
+      redirect_url: "http://localhost:5173/wallet/verify",
       customer: {
         email: user.email,
         name: user.fullName,
-        phone_number: user.phoneNumber // Added from user model
+        phone_number: user.phoneNumber
       },
       customizations: {
         title: "Wallet Top-Up",
-        description: `Top up of ${formatCurrency(amount)}`,
-        logo: process.env.LOGO_URL
-      },
-      meta: {
-        userId: user._id.toString(),
-        transactionId: transaction._id.toString()
+        description: `Top up of ₦${amount}`
       }
     };
 
+    // Initialize Flutterwave payment
     const response = await flw.Payment.initiate(paymentData);
+    
     if (response.status !== 'success') {
-      await Transaction.deleteOne({ _id: transaction._id });
-      return res.status(500).json({ 
-        status: "error", 
-        message: "Payment initiation failed" 
-      });
+      throw new Error(response.message || 'Failed to initiate payment');
     }
 
-    res.json({ 
-      status: "success", 
-      paymentLink: response.data.link,
-      transactionId: transaction._id
+    // Create pending transaction
+    await Transaction.create({
+      user: userId,
+      amount,
+      type: "topup",
+      method: paymentMethod,
+      reference: txRef,
+      status: "pending"
     });
 
-  } catch (err) {
-    console.error("Top-up error:", err);
-    res.status(500).json({ 
-      status: "error", 
+    res.json({
+      success: true,
+      paymentLink: response.data.link
+    });
+
+  } catch (error) {
+    console.error('Top-up error:', error);
+    res.status(500).json({
+      success: false,
       message: process.env.NODE_ENV === 'development' 
-        ? err.message 
-        : "Could not initiate top-up" 
+        ? error.message 
+        : 'Could not initiate payment'
     });
   }
 };
