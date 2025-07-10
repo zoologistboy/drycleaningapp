@@ -1,4 +1,6 @@
 // controllers/wallet.js
+
+const mongoose = require('mongoose');
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const User = require('../models/user');
@@ -143,6 +145,101 @@ const initiateFlutterwavePayment = async (req, res) => {
 // const Transaction = require('../models/Transaction');
 // const User = require('../models/User');
 
+// const verifyFlutterwavePayment = async (req, res) => {
+//   const { transaction_id } = req.query;
+
+//   if (!transaction_id) {
+//     return res.status(400).json({ message: 'Missing transaction_id' });
+//   }
+
+//   try {
+//     const verifyRes = await axios.get(
+//       `https://api.flutterwave.com/v3/transactions/${transaction_id}/verify`,
+//       {
+//         headers: {
+//           Authorization: `Bearer ${process.env.FLW_SECRET_KEY}`,
+//         },
+//       }
+//     );
+
+//     const data = verifyRes.data.data;
+
+//     if (data.status === 'successful') {
+//       const user = await User.findOne({ email: data.customer.email });
+//       if (!user) {
+//         return res.status(404).json({ message: 'User not found' });
+//       }
+
+//       // Check if transaction already exists
+//       const existing = await Transaction.findOne({ reference: data.tx_ref });
+//       if (existing && existing.status === 'completed') {
+//         return res.redirect(`http://localhost:5173/wallet?status=success&message=already-processed`);
+//       }
+
+//       const previousBalance = user.walletBalance;
+//       user.walletBalance += Number(data.amount);
+//       await user.save();
+
+//       // Create or update transaction
+//       const transaction = existing
+//         ? await Transaction.findOneAndUpdate(
+//             { reference: data.tx_ref },
+//             {
+//               status: 'completed',
+//               previousBalance,
+//               newBalance: user.walletBalance,
+//               method: 'flutterwave',
+//             },
+//             { new: true }
+//           )
+//         : await Transaction.create({
+//             user: user._id,
+//             amount: data.amount,
+//             type: 'topup',
+//             method: 'flutterwave',
+//             reference: data.tx_ref,
+//             status: 'completed',
+//             previousBalance,
+//             newBalance: user.walletBalance,
+//             description: `Flutterwave top-up`,
+//           });
+
+//       // Push notification to user
+//       await User.findByIdAndUpdate(user._id, {
+//         $push: {
+//           notifications: {
+//             message: `Your wallet was credited with ₦${Number(data.amount).toLocaleString()}`,
+//             type: 'wallet',
+//             link: '/wallet',
+//             read: false,
+//             createdAt: new Date(),
+//           },
+//         },
+//       });
+
+//       // Emit real-time notification
+//       try {
+//         const io = req.app.get('io');
+//         io.to(`user_${user._id}`).emit('notification', {
+//           message: `Your wallet was credited with ₦${Number(data.amount).toLocaleString()}`,
+//           type: 'wallet',
+//           link: '/wallet',
+//           createdAt: new Date(),
+//         });
+//       } catch (err) {
+//         console.error('Socket emit failed:', err.message);
+//       }
+
+//       return res.redirect(`http://localhost:5173/wallet?status=success`);
+//     }
+
+//     return res.redirect(`http://localhost:5173/wallet?status=failed`);
+//   } catch (err) {
+//     console.error('Verification error:', err.response?.data || err.message);
+//     return res.status(500).send('Payment verification failed');
+//   }
+// };
+
 const verifyFlutterwavePayment = async (req, res) => {
   const { transaction_id } = req.query;
 
@@ -163,14 +260,17 @@ const verifyFlutterwavePayment = async (req, res) => {
     const data = verifyRes.data.data;
 
     if (data.status === 'successful') {
-      const user = await User.findOne({ email: data.customer.email });
-      if (!user) {
-        return res.status(404).json({ message: 'User not found' });
+      // 🔁 Safer way: find the original transaction you created in initiate step
+      const existing = await Transaction.findOne({ reference: data.tx_ref }).populate('user');
+
+      if (!existing || !existing.user) {
+        return res.status(404).json({ message: 'Transaction or user not found' });
       }
 
-      // Check if transaction already exists
-      const existing = await Transaction.findOne({ reference: data.tx_ref });
-      if (existing && existing.status === 'completed') {
+      const user = existing.user;
+
+      // 🛑 Prevent double-processing
+      if (existing.status === 'completed') {
         return res.redirect(`http://localhost:5173/wallet?status=success&message=already-processed`);
       }
 
@@ -178,31 +278,13 @@ const verifyFlutterwavePayment = async (req, res) => {
       user.walletBalance += Number(data.amount);
       await user.save();
 
-      // Create or update transaction
-      const transaction = existing
-        ? await Transaction.findOneAndUpdate(
-            { reference: data.tx_ref },
-            {
-              status: 'completed',
-              previousBalance,
-              newBalance: user.walletBalance,
-              method: 'flutterwave',
-            },
-            { new: true }
-          )
-        : await Transaction.create({
-            user: user._id,
-            amount: data.amount,
-            type: 'topup',
-            method: 'flutterwave',
-            reference: data.tx_ref,
-            status: 'completed',
-            previousBalance,
-            newBalance: user.walletBalance,
-            description: `Flutterwave top-up`,
-          });
+      // ✅ Update the existing transaction
+      existing.status = 'completed';
+      existing.newBalance = user.walletBalance;
+      existing.method = 'flutterwave';
+      await existing.save();
 
-      // Push notification to user
+      // 🔔 Push notification
       await User.findByIdAndUpdate(user._id, {
         $push: {
           notifications: {
@@ -215,7 +297,7 @@ const verifyFlutterwavePayment = async (req, res) => {
         },
       });
 
-      // Emit real-time notification
+      // 🔴 Emit socket event (optional)
       try {
         const io = req.app.get('io');
         io.to(`user_${user._id}`).emit('notification', {
@@ -237,6 +319,7 @@ const verifyFlutterwavePayment = async (req, res) => {
     return res.status(500).send('Payment verification failed');
   }
 };
+
 
 
 // const initiateFlutterwavePayment = async (req, res) => {

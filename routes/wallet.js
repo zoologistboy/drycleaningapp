@@ -25,6 +25,6 @@ walletRouter.post('/webhook', paymentWebhook);
 
 // Flutterwave-specific
 walletRouter.post('/flutterwave/initiate', isLoggedIn, initiateFlutterwavePayment);
-walletRouter.get('/flutterwave/verify', verifyFlutterwavePayment); // This route is called via redirect from Flutterwave
+walletRouter.get('/flutterwave/verify', isLoggedIn, verifyFlutterwavePayment); // This route is called via redirect from Flutterwave
 
 module.exports = walletRouter;
