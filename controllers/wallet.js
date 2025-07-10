@@ -315,6 +315,7 @@ const verifyFlutterwavePayment = async (req, res) => {
       }
 
      return res.status(200).json({
+        status:"success",
         success: true,
         message: 'Payment verified and wallet credited',
         data: transaction,
