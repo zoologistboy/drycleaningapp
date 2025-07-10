@@ -233,40 +233,40 @@ const getWalletTransactions = async (req, res) => {
   }
 };
 
-const verifyTopUp = async (req, res) => {
-  try {
-    const { transaction_id } = req.query;
+// const verifyTopUp = async (req, res) => {
+//   try {
+//     const { transaction_id } = req.query;
 
-    const response = await flw.Transaction.verify({ id: transaction_id });
-    const { status, tx_ref, amount } = response.data;
+//     const response = await flw.Transaction.verify({ id: transaction_id });
+//     const { status, tx_ref, amount } = response.data;
 
-    const transaction = await Transaction.findOne({ reference: tx_ref });
-    if (!transaction || transaction.status === 'completed') {
-      return res.redirect('/wallet?verified=already'); // Frontend route
-    }
+//     const transaction = await Transaction.findOne({ reference: tx_ref });
+//     if (!transaction || transaction.status === 'completed') {
+//       return res.redirect('/wallet?verified=already'); // Frontend route
+//     }
 
-    if (status === "successful") {
-      const user = await User.findById(transaction.user);
-      const prevBalance = user.walletBalance;
-      user.walletBalance += amount;
-      await user.save();
+//     if (status === "successful") {
+//       const user = await User.findById(transaction.user);
+//       const prevBalance = user.walletBalance;
+//       user.walletBalance += amount;
+//       await user.save();
 
-      transaction.status = "completed";
-      transaction.newBalance = user.walletBalance;
-      transaction.previousBalance = prevBalance;
-      await transaction.save();
+//       transaction.status = "completed";
+//       transaction.newBalance = user.walletBalance;
+//       transaction.previousBalance = prevBalance;
+//       await transaction.save();
 
-      return res.redirect('/wallet?verified=success');
-    }
+//       return res.redirect('/wallet?verified=success');
+//     }
 
-    transaction.status = "failed";
-    await transaction.save();
-    return res.redirect('/wallet?verified=failed');
-  } catch (error) {
-    console.error("Verification error:", error);
-    return res.redirect('/wallet?verified=error');
-  }
-};
+//     transaction.status = "failed";
+//     await transaction.save();
+//     return res.redirect('/wallet?verified=failed');
+//   } catch (error) {
+//     console.error("Verification error:", error);
+//     return res.redirect('/wallet?verified=error');
+//   }
+// };
 
 // 
 // const paymentWebhook = async (req, res) => {
@@ -450,6 +450,129 @@ const verifyTopUp = async (req, res) => {
 //     });
 //   }
 // };
+const verifyTopUp = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  
+  try {
+    const { transaction_id } = req.query;
+
+    // 1. Validate input
+    if (!transaction_id) {
+      await session.abortTransaction();
+      return res.redirect('/wallet?verified=error&message=Transaction ID required');
+    }
+
+    // 2. Verify with Flutterwave
+    const flutterwaveResponse = await flw.Transaction.verify({ 
+      id: transaction_id 
+    });
+    
+    const { status, tx_ref, amount, currency } = flutterwaveResponse.data;
+    console.log('Flutterwave verification:', { status, tx_ref, amount });
+
+    // 3. Find existing transaction (in session)
+    const existingTransaction = await Transaction.findOne({ 
+      reference: tx_ref 
+    }).session(session);
+
+    // 4. Handle duplicate transactions
+    if (existingTransaction) {
+      if (existingTransaction.status === 'completed') {
+        await session.abortTransaction();
+        return res.redirect('/wallet?verified=already');
+      }
+      
+      // Update existing pending transaction
+      existingTransaction.flutterwaveId = transaction_id;
+      await existingTransaction.save({ session });
+    }
+
+    // 5. Process successful payment
+    if (status === "successful") {
+      // Get user with locking to prevent race conditions
+      const user = await User.findById(req.user._id)
+        .select('walletBalance')
+        .session(session);
+
+      if (!user) {
+        await session.abortTransaction();
+        return res.redirect('/wallet?verified=error&message=User not found');
+      }
+
+      const prevBalance = user.walletBalance;
+      const newBalance = prevBalance + amount;
+
+      // Create or update transaction record
+      const transaction = existingTransaction || new Transaction({
+        user: req.user._id,
+        amount,
+        currency,
+        type: 'topup',
+        method: 'card',
+        reference: tx_ref,
+        status: 'completed',
+        previousBalance: prevBalance,
+        newBalance,
+        description: `Wallet topup via Flutterwave`,
+        metadata: {
+          flutterwaveId: transaction_id,
+          verifiedAt: new Date()
+        }
+      });
+
+      // Update user balance
+      user.walletBalance = newBalance;
+      await user.save({ session });
+      await transaction.save({ session });
+
+      // Add notification
+      user.notifications.push({
+        message: `Your wallet was credited with ${currency} ${amount.toFixed(2)}`,
+        type: 'wallet',
+        link: '/wallet'
+      });
+      await user.save({ session });
+
+      await session.commitTransaction();
+      return res.redirect('/wallet?verified=success');
+    }
+
+    // 6. Handle failed payment
+    if (existingTransaction) {
+      existingTransaction.status = 'failed';
+      existingTransaction.newBalance = existingTransaction.previousBalance;
+      await existingTransaction.save({ session });
+      
+      // Add notification
+      const user = await User.findById(req.user._id).session(session);
+      user.notifications.push({
+        message: `Wallet topup of ${currency} ${amount.toFixed(2)} failed`,
+        type: 'wallet',
+        link: '/wallet'
+      });
+      await user.save({ session });
+    }
+
+    await session.commitTransaction();
+    return res.redirect('/wallet?verified=failed');
+
+  } catch (error) {
+    await session.abortTransaction();
+    console.error("Verification error:", error);
+    
+    // Enhanced error reporting
+    const errorMessage = error.response?.data?.message || 
+                        error.message || 
+                        'Payment verification failed';
+    
+    return res.redirect(
+      `/wallet?verified=error&message=${encodeURIComponent(errorMessage)}`
+    );
+  } finally {
+    session.endSession();
+  }
+};
 
 const paymentWebhook = async (req, res) => {
   try {
