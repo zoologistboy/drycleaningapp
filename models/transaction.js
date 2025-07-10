@@ -23,7 +23,7 @@ const transactionSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   amount: { type: Number, required: true },
   type: { type: String, enum: ['topup', 'payment', 'refund', 'withdrawal'], required: true },
-  method: { type: String, enum: ['card', 'bank', 'wallet', 'cash'], required: true },
+  method: { type: String, enum: ['card', 'bank', 'wallet', 'cash', "flutterwave"], required: true },
   reference: { type: String, required: true, unique: true },
   status: { type: String, enum: ['pending', 'completed', 'failed'], default: 'pending' },
   previousBalance: { type: Number, required: true },
