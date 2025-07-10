@@ -314,10 +314,14 @@ const verifyFlutterwavePayment = async (req, res) => {
         console.error('Socket emit failed:', err.message);
       }
 
-      return res.redirect(`http://localhost:5173/wallet?status=success`);
+     return res.status(200).json({
+        success: true,
+        message: 'Payment verified and wallet credited',
+        data: transaction,
+      });
     }
 
-    return res.redirect(`http://localhost:5173/wallet?status=failed`);
+    return res.status(400).json({ success: false, message: 'Payment was not successful' });
   } catch (err) {
     console.error('Verification error:', err.response?.data || err.message);
     return res.status(500).send('Payment verification failed');
