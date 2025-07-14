@@ -8,9 +8,11 @@ const Transaction = require('../models/transaction');
 const dotenv = require("dotenv")
 dotenv.config()
 
+const clientDomain = process.env.FRONTEND_URL
+
 
 const Flutterwave = require('flutterwave-node-v3');
-const flw = new Flutterwave(process.env.FLW_PUBLIC_KEY, process.env.FLW_SECRET_KEY);
+const flw = new Flutterwave(process.env.FLW_PUBLIC_KEY, process.env.FLW_SECRET_KEY);//localhost
 
 const topUpWallet = async (req, res) => {
   try {
@@ -31,7 +33,7 @@ const topUpWallet = async (req, res) => {
       tx_ref: txRef,
       amount,
       currency: "NGN",
-      redirect_url: "http://localhost:5173/wallet/verify", // frontend route to handle verification
+      redirect_url: `${clientDomain}/wallet/verify`, // frontend route to handle verification
       customer: {
         email: user.email,
         name: user.fullName,
@@ -111,7 +113,7 @@ const initiateFlutterwavePayment = async (req, res) => {
         tx_ref: txRef,
         amount,
         currency: 'NGN',
-        redirect_url: 'http://localhost:5173/wallet/verify', // adjust if in production
+        redirect_url: `${clientDomain}/wallet/verify`, // adjust if in production
         customer: {
           email: user.email,
           name: user.fullName,
@@ -173,7 +175,7 @@ const initiateFlutterwavePayment = async (req, res) => {
 //       // Check if transaction already exists
 //       const existing = await Transaction.findOne({ reference: data.tx_ref });
 //       if (existing && existing.status === 'completed') {
-//         return res.redirect(`http://localhost:5173/wallet?status=success&message=already-processed`);
+//         return res.redirect(`${clientDomain}/wallet?status=success&message=already-processed`);
 //       }
 
 //       const previousBalance = user.walletBalance;
@@ -230,10 +232,10 @@ const initiateFlutterwavePayment = async (req, res) => {
 //         console.error('Socket emit failed:', err.message);
 //       }
 
-//       return res.redirect(`http://localhost:5173/wallet?status=success`);
+//       return res.redirect(`${clientDomain}/wallet?status=success`);
 //     }
 
-//     return res.redirect(`http://localhost:5173/wallet?status=failed`);
+//     return res.redirect(`${clientDomain}/wallet?status=failed`);
 //   } catch (err) {
 //     console.error('Verification error:', err.response?.data || err.message);
 //     return res.status(500).send('Payment verification failed');
@@ -465,7 +467,7 @@ const verifyFlutterwavePayment = async (req, res) => {
 //         tx_ref: txRef,
 //         amount,
 //         currency: 'NGN',
-//         redirect_url: 'http://localhost:5173/wallet/verify',
+//         redirect_url: `${clientDomain}/wallet/verify',
 //         customer: {
 //           email: user.email,
 //           name: user.fullName,
@@ -543,10 +545,10 @@ const verifyFlutterwavePayment = async (req, res) => {
 //         },
 //       });
 
-//       return res.redirect(`http://localhost:5173/wallet?status=success`);
+//       return res.redirect(`${clientDomain}/wallet?status=success`);
 //     }
 
-//     return res.redirect(`http://localhost:5173/wallet?status=failed`);
+//     return res.redirect(`${clientDomain}/wallet?status=failed`);
 //   } catch (err) {
 //     console.error('Verification error:', err.message);
 //     res.status(500).send('Payment verification failed');
@@ -571,7 +573,7 @@ const getWalletBalance = async (req, res) => {
     });
   } catch (err) {
     console.error('Get wallet error:', err);
-    res.status(500).json({ message: 'Failed to retrieve wallet balance' });
+    res.status(500).json({ message: 'Failed to retrieve wallet balance' });//localhost
   }
 };
 
